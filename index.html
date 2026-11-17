@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Тенис турнир – Горна Оряховица</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Ctext y='9' font-size='9'%3E🎾%3C/text%3E%3C/svg%3E">
+<style>
+:root{--bg:#F6F1E7;--ink:#14241A;--mut:#5A4A3A;--card:#fff;--line:#E3DCC8;--g:#1F3D2B;--acc:#B8481F;--onacc:#fff;--ok:#2F6B45;--bad:#A12A2A}
+@media(prefers-color-scheme:dark){:root{--bg:#0F1A13;--ink:#EDE8DA;--mut:#B9B09C;--card:#18271D;--line:#2B3D30;--g:#0B130E;--acc:#E0714A;--onacc:#14241A;--ok:#6FC08A;--bad:#F08A8A}}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+header{background:var(--g);color:#F6F1E7}
+.bar,main,nav,footer{max-width:960px;margin:0 auto;padding:16px 20px;box-sizing:border-box}
+.bar{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center}
+.br{font-size:22px;font-weight:800}.sub{font-size:13px;color:var(--mut)}header .sub{color:#D8D2C0}
+select,input{font:inherit;color:var(--ink);background:var(--card);border:1.5px solid var(--line);border-radius:8px;padding:10px 12px;min-height:44px;box-sizing:border-box;max-width:100%}
+nav{display:flex;flex-wrap:wrap;gap:8px}
+.tab,.b,.b2{font:inherit;font-weight:700;min-height:44px;padding:0 20px;border-radius:999px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+.tab.on,.b{background:var(--acc);border-color:var(--acc);color:var(--onacc)}.b2{background:transparent}
+h1{font-size:32px;line-height:1.15;margin:8px 0}h2{font-size:22px;margin:28px 0 12px}
+.c{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin:12px 0}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0}.sp{justify-content:space-between}
+.f{display:flex;flex-direction:column;gap:8px;max-width:520px}
+.f label{display:flex;flex-direction:column;gap:4px;font-weight:600;font-size:14px}
+.f input[type=number]{width:120px}
+.chip{font-size:12px;font-weight:700;border:1.5px solid var(--line);border-radius:999px;padding:2px 10px}
+.chip.locked{color:var(--ok);border-color:var(--ok)}.chip.dispute{color:var(--bad);border-color:var(--bad)}
+.note{background:var(--card);border-left:6px solid var(--acc);padding:12px 16px;border-radius:8px;margin:12px 0}
+.tw{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{text-align:left;padding:10px 12px;border-top:1px solid var(--line)}th{font-size:13px;color:var(--mut);border:0}
+summary{cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center}
+</style>
+</head>
+<body>
+<header id="h"></header><nav id="n"></nav><main id="m">Зареждане…</main>
+<footer class="sub">Тенис турнир · Горна Оряховица · 3-то ОУ</footer>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0"></script>
+<script>
+const SB=supabase.createClient('https://lapzwkfukwqlolqrghkg.supabase.co','sb_publishable_M__a-EoKAwt3lNbU63EHMw_lIvqL7eB');
+let S={tab:'home',meId:null,me:null,pls:[],t:null,ms:[],es:[],log:[]},msg='',link='';
+const G=i=>document.getElementById(i);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const PL=i=>S.pls.find(p=>p.id===i),nm=i=>PL(i)?esc(PL(i).name):'?',nr=i=>PL(i)?.name||'?';
+const dt=d=>new Date(d).toLocaleDateString('bg-BG');
+const ST={open:'Чака резултат',wait:'Чака потвърждение',locked:'Заключен',dispute:'При администратор'};
+const W=(m,e)=>e.k==='played'?(e.sets.filter(s=>s[0]>s[1]).length>e.sets.length/2?m.a:m.b):e.w;
+const fin=(m,e,raw)=>{const f=e.k==='played'?e.sets.map(s=>s.join(':')).join(' '):e.k==='wo'?'неявяване':'отказ';return f+' · победа: '+(raw?nr(W(m,e)):nm(W(m,e)))};
+const go=t=>{S.tab=t;link='';render()};
+async function init(){
+ try{
+  const g=await SB.auth.getSession();
+  if(!g.data.session){const r=await SB.auth.signInAnonymously();if(r.error)throw r.error}
+  const h=location.hash.match(/t=([0-9a-f]{64})/);
+  if(h){const r=await SB.rpc('claim_token',{p_token:h[1]});history.replaceState(null,'',location.pathname);msg=r.error?r.error.message:'Влязохте успешно.'}
+  await load()
+ }catch(e){msg='Няма връзка със сървъра: '+(e.message||e)}
+ render()}
+async function load(){
+ const me=await SB.rpc('me');S.meId=me.data||null;
+ if(!S.meId){S.me=null;return}
+ const [p,pl,t]=await Promise.all([SB.from('players').select('*').eq('id',S.meId).single(),SB.rpc('list_players'),SB.from('tournaments').select('*').eq('active',true).order('created_at',{ascending:false}).limit(1)]);
+ S.me=p.data;S.pls=pl.data||[];S.t=t.data?.[0]||null;
+ if(S.t){const [m,e]=await Promise.all([SB.from('matches').select('*').eq('tournament_id',S.t.id).order('deadline'),SB.from('entries').select('*')]);S.ms=m.data||[];S.es=e.data||[]}else{S.ms=[];S.es=[]}
+ if(S.me.is_admin){const a=await SB.from('audit').select('*').order('at',{ascending:false}).limit(30);S.log=a.data||[]}}
+async function call(fn,args,ok){const r=await SB.rpc(fn,args);msg=r.error?'Грешка: '+r.error.message:(typeof ok==='function'?ok(r.data):ok);if(!r.error)await load();render();return r}
+function render(){
+ const adm=S.me?.is_admin,pl=!!S.me;
+ G('h').innerHTML=`<div class="bar"><div><div class="br">🎾 Тенис турнир</div><div class="sub">Горна Оряховица · 3-то ОУ</div></div>${pl?`<div class="sub">Влязъл като <b>${esc(S.me.name)}</b></div>`:''}</div>`;
+ const tabs=pl?[['home','Начало'],['mine','Мои мачове'],['tour','Турнир'],['pls','Играчи'],['prof','Профил'],...(adm?[['adm','Админ']]:[])]:[];
+ G('n').innerHTML=tabs.map(([k,l])=>`<button class="tab${S.tab===k?' on':''}" onclick="go('${k}')">${l}</button>`).join('');
+ const v=pl?{home:vHome,mine:vMine,tour:vTour,pls:vPls,prof:vProf,adm:vAdm}[S.tab]||vHome:vGuest;
+ G('m').innerHTML=(msg?`<div class="note" role="status">${esc(msg)}</div>`:'')+v();msg=''}
+const vGuest=()=>`<h1>Турнирът на нашата група</h1><p>За да влезеш, ти трябва личен линк. Поискай го от администратора във Viber и го отвори на този телефон. Линкът работи само веднъж.</p>`;
+const vHome=()=>{const my=S.ms.filter(m=>m.a===S.meId||m.b===S.meId&&1),todo=S.ms.filter(m=>(m.a===S.meId||m.b===S.meId)&&['open','wait'].includes(m.status)).length;
+ return`<h1>Здравей, ${esc(S.me.name)}</h1><p>${S.t?'Текущ турнир: <b>'+esc(S.t.name)+'</b>.':'Още няма активен турнир.'} Мачове за изиграване: <b>${todo}</b>.</p><div class="row"><button class="b" onclick="go('mine')">Моите мачове</button><button class="b2" onclick="go('tour')">Класиране</button></div>
+<h2>Как работи</h2><ol><li>Виждаш противника, контакта му и срока.</li><li>Договаряте се във Viber, играете.</li><li>И двамата въвеждате резултата, без да виждате чуждия. Съвпадне ли, заключва се.</li></ol>`};
+function form(m,adm){const L=adm?[nm(m.a),nm(m.b)]:['Моите гейм','Гейм на противника'],id=m.id;
+ return`<div class="f"><select id="${id}_k" aria-label="Вид на мача"><option value="played">Изигран мач</option><option value="wo">${adm?'Неявяване':'Противникът не се яви'}</option><option value="ret">${adm?'Отказ':'Противникът се отказа'}</option></select>
+${adm?`<select id="${id}_w" aria-label="Победител"><option value="${m.a}">Победител: ${nm(m.a)}</option><option value="${m.b}">Победител: ${nm(m.b)}</option></select>`:''}
+${[0,1,2].map(i=>`<div class="row"><span class="sub">Сет ${i+1}</span><input type="number" min="0" max="99" inputmode="numeric" id="${id}_s${i}a" aria-label="${L[0]}, сет ${i+1}" placeholder="${L[0]}"><input type="number" min="0" max="99" inputmode="numeric" id="${id}_s${i}b" aria-label="${L[1]}, сет ${i+1}" placeholder="${L[1]}"></div>`).join('')}
+<div class="sub">При неявяване или отказ сетовете се пропускат.</div><button class="b" onclick="ent('${id}',${adm})">Запази резултата</button></div>`}
+function sets(id){const s=[];for(let i=0;i<3;i++){const a=G(id+'_s'+i+'a').value,b=G(id+'_s'+i+'b').value;if(a===''&&b==='')continue;s.push([a===''?-1:+a,b===''?-1:+b])}return s}
+const SM={wait:'Въведено. Чака се другият играч.',locked:'Резултатите съвпадат. Мачът е заключен.',mismatch:'Резултатите не съвпадат. И двамата въведете отново (остава един опит).',dispute:'Резултатите отново не съвпадат. Случаят отива при администратор.'};
+async function ent(id,adm){const k=G(id+'_k').value,s=k==='played'?sets(id):null;
+ if(adm)await call('admin_set_result',{p_match:id,p_kind:k,p_sets:s,p_winner:G(id+'_w').value},'Резултатът е записан.');
+ else await call('submit_result',{p_match:id,p_kind:k,p_sets:s},d=>SM[d]||d)}
+function cp(id,b){const el=G(id);el.select();try{navigator.clipboard.writeText(el.value);b.textContent='Копирано'}catch(e){b.textContent='Маркирано – копирай ръчно'}}
+function vMine(){const c=S.meId,ms=S.ms.filter(m=>m.a===c||m.b===c);if(!ms.length)return'<h2>Мои мачове</h2><p>Още нямаш мачове.</p>';
+ return'<h2>Мои мачове</h2>'+ms.map(m=>{const o=c===m.a?m.b:m.a,op=PL(o)||{},mine=S.es.some(e=>e.match_id===m.id&&e.player_id===c&&e.attempt===m.attempts);let b='';
+  if(m.status==='locked'){const t=`Резултат: ${nr(m.a)} – ${nr(m.b)}: ${fin(m,m.final,1)}`;b=`<p><b>${fin(m,m.final)}</b></p><div class="row"><input id="v${m.id}" readonly value="${esc(t)}" style="flex:1;min-width:200px"><button class="b2" onclick="cp('v${m.id}',this)">Копирай за Viber</button></div>`}
+  else if(m.status==='dispute')b='<p>Резултатите не съвпаднаха два пъти. Свържете се с администратора.</p>';
+  else if(mine)b='<p>Твоят резултат е въведен. Чака се противникът.</p>';
+  else b=`<details><summary>Въведи резултат</summary>${form(m,false)}</details>`;
+  return`<div class="c"><div class="row sp"><b>${nm(c)} – ${nm(o)}</b><span class="chip ${m.status}">${ST[m.status]}</span></div><div class="sub">Срок: ${dt(m.deadline)} · ${esc(op.phone||'без телефон')}${op.email?' · '+esc(op.email):''}</div>${b}</div>`}).join('')}
+function stand(){const r={};S.ms.forEach(m=>[m.a,m.b].forEach(i=>r[i]=r[i]||{n:nr(i),m:0,w:0,l:0,sf:0,sa:0,p:0}));
+ S.ms.filter(m=>m.final).forEach(m=>{const e=m.final,w=W(m,e),l=w===m.a?m.b:m.a;r[w].m++;r[l].m++;r[w].w++;r[l].l++;r[w].p+=2;if(e.k==='played'){r[l].p++;e.sets.forEach(s=>{const x=s[0]>s[1]?m.a:m.b,y=x===m.a?m.b:m.a;r[x].sf++;r[y].sa++})}});
+ return Object.values(r).sort((a,b)=>(b.p-a.p)||((b.sf-b.sa)-(a.sf-a.sa))||a.n.localeCompare(b.n))}
+function vTour(){if(!S.t)return'<h2>Турнир</h2><p>Още няма активен турнир.</p>';
+ return`<h2>${esc(S.t.name)}</h2><div class="c tw"><table><tr><th>№</th><th>Играч</th><th>М</th><th>П</th><th>З</th><th>Сетове</th><th>Т</th></tr>${stand().map((r,i)=>`<tr><td><b>${i+1}</b></td><td>${esc(r.n)}</td><td>${r.m}</td><td>${r.w}</td><td>${r.l}</td><td>${r.sf}:${r.sa}</td><td><b>${r.p}</b></td></tr>`).join('')}</table></div>
+<div class="sub">М – мачове, П – победи, З – загуби, Т – точки. Победа 2 т., загуба след изигран мач 1 т., неявяване или отказ 0 т. При равни точки решава разликата в сетовете.</div>
+<h2>Всички мачове</h2>${S.ms.map(m=>`<div class="c"><div class="row sp"><b>${nm(m.a)} – ${nm(m.b)}</b><span class="chip ${m.status}">${ST[m.status]}</span></div><div class="sub">${m.final?fin(m,m.final):'Срок: '+dt(m.deadline)}</div></div>`).join('')}`}
+const vPls=()=>'<h2>Играчи</h2>'+S.pls.filter(p=>p.active||S.me.is_admin).map(p=>`<div class="c"><b>${esc(p.name)}</b> <span class="chip">${esc(p.level)}</span>${p.active?'':' <span class="chip">неактивен</span>'}<div class="sub">${esc(p.avail||'')}</div><div>${p.phone||p.email?esc(p.phone||'')+(p.email?' · '+esc(p.email):''):'<span class="sub">Контактите са скрити. Виждат се само от противника в мач.</span>'}</div></div>`).join('');
+function fld(id,l,v='',t='text'){return`<label>${l}<input id="${id}" type="${t}" value="${esc(v)}"></label>`}
+function vProf(){const p=S.me;return`<h2>Моят профил</h2><div class="f">${fld('r_name','Име и фамилия',p.name)}${fld('r_phone','Телефон',p.phone,'tel')}${fld('r_mail','Имейл',p.email,'email')}<label>Ниво<select id="r_level">${['Начинаещ','Среден','Напреднал'].map(x=>`<option${x===p.level?' selected':''}>${x}</option>`).join('')}</select></label>${fld('r_av','Кога мога да играя',p.avail)}<label style="flex-direction:row;align-items:center;gap:10px"><input type="checkbox" id="r_share"${p.share_contacts?' checked':''} style="min-height:auto"> Контактите ми да се виждат от всички играчи</label><button class="b" onclick="saveProf()">Запази</button><div class="sub">Ако не е отбелязано, контактите ти се виждат само от противника в мач.</div></div>`}
+const saveProf=()=>call('update_profile',{p_name:G('r_name').value,p_phone:G('r_phone').value,p_email:G('r_mail').value,p_level:G('r_level').value,p_avail:G('r_av').value,p_share:G('r_share').checked},'Профилът е запазен.');
+const mkLink=t=>location.origin+location.pathname+'#t='+t;
+const addP=()=>call('admin_create_player',{p_name:G('a_pn').value,p_phone:G('a_pp').value},t=>{link=mkLink(t);return'Играчът е добавен. Копирай линка и го прати лично във Viber.'});
+const resetP=id=>call('admin_reset_token',{p_player:id},t=>{link=mkLink(t);return'Нов линк за вход. Старият телефон вече няма достъп.'});
+const actP=(id,v)=>call('admin_set_active',{p_player:id,p_active:v},'Запазено.');
+const newT=()=>call('admin_create_tournament',{p_name:G('a_name').value||'Турнир',p_days:+G('a_days').value||14},n=>'Турнирът е създаден: '+n+' мача.');
+function vAdm(){
+ return`<h2>Администрация</h2>${link?`<div class="c"><b>Личен линк за вход (показва се само сега)</b><div class="sub">Прати го лично на играча във Viber. Работи само веднъж.</div><div class="row"><input id="lk" readonly value="${esc(link)}" style="flex:1;min-width:220px"><button class="b2" onclick="cp('lk',this)">Копирай</button></div></div>`:''}
+<div class="c"><b>Добави играч</b><div class="f">${fld('a_pn','Име')}${fld('a_pp','Телефон','','tel')}<button class="b" onclick="addP()">Добави и направи линк</button></div></div>
+<div class="c"><b>Играчи</b>${S.pls.map(p=>`<div class="row sp"><span>${esc(p.name)} <span class="chip">${p.claimed?'влязъл':'чака линк'}</span>${p.active?'':' <span class="chip">неактивен</span>'}</span><span class="row"><button class="b2" onclick="resetP('${p.id}')">Нов линк</button><button class="b2" onclick="actP('${p.id}',${!p.active})">${p.active?'Скрий':'Върни'}</button></span></div>`).join('')}</div>
+<div class="c"><b>Нов турнир (всеки срещу всеки)</b><div class="f">${fld('a_name','Име на турнира',S.t?.name||'Турнир')}${fld('a_days','Срок за мачовете (дни)','14','number')}<button class="b" onclick="newT()">Създай мачове</button><div class="sub">Заменя текущия турнир с нов за всички активни играчи.</div></div></div>
+<h2>Мачове</h2>${S.ms.map(m=>{const last=S.es.filter(e=>e.match_id===m.id&&e.attempt===m.attempts-1);return`<div class="c"><div class="row sp"><b>${nm(m.a)} – ${nm(m.b)}</b><span class="chip ${m.status}">${ST[m.status]}</span></div>${m.final?`<div>${fin(m,m.final)}</div>`:''}${m.status==='dispute'?'<div class="sub">Въведено: '+last.map(e=>nm(e.player_id)+' – '+fin(m,e.result)).join(' | ')+'</div>':''}<details><summary>${m.final?'Поправи резултата':'Задай резултат'}</summary>${form(m,true)}</details></div>`}).join('')}
+<h2>Журнал на промените</h2>${S.log.length?S.log.map(l=>`<div class="sub">${new Date(l.at).toLocaleString('bg-BG')} · ${esc(l.txt)}</div>`).join(''):'<p class="sub">Още няма записи.</p>'}`}
+init();
+</script>
+</body>
+</html>
